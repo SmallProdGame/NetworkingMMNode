@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "target": "es6",
+    "module": "commonjs",
+    "declaration": true,
+    "outDir": "./dist",
+    "strict": true,
+    "noImplicitAny": true,
+    "removeComments": true,
+    "esModuleInterop": true,
+    "moduleResolution": "node",
+    "preserveConstEnums": true,
+    "allowJs": false,
+    "strictNullChecks": true
+  },
+  "include": ["./src/**/*.*"],
+  "exclude": ["./node_modules/**/*.*"]
+}
