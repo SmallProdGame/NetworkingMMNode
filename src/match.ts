@@ -1,51 +1,74 @@
 import uuid from 'uuid';
 import Client from './client';
 import { removeMatch } from './matchmakingmanager';
-import { GetBestGameServer } from './gameserver';
+import gameServers from './gameserver';
 import GameServerEntry from './gameserverentry';
-import { randomInt } from './utils';
+import utils from './utils';
 
-interface Player {
+export interface Player {
   client: Client;
   state: number;
   key: string | null;
 }
 
+export interface Team {
+  players: Player[];
+  grade: number;
+}
+
 export default class Match {
   hasStart = false;
   isFull = false;
-
+  nbPlayersPerTeam: number;
+  allowedGap: number;
   matchId: number;
   maxUser: number;
   minUser: number;
   map: string;
+  type: string;
   password: string;
-  users: Player[];
+  teams: Team[];
   gameServer: GameServerEntry | null;
+  async = false;
 
-  constructor(maxUser: number, minUser: number, map: string, password: string) {
-    this.matchId = randomInt(1, 10000000);
+  constructor(
+    maxUser: number,
+    minUser: number,
+    map: string,
+    type: string,
+    password: string,
+    nbPlayersPerTeam: number,
+    allowedGap: number,
+  ) {
+    this.matchId = utils.randomInt(1, 10000000);
     this.maxUser = maxUser;
     this.minUser = minUser;
+    this.nbPlayersPerTeam = nbPlayersPerTeam;
+    this.allowedGap = allowedGap;
     this.map = map;
+    this.type = type;
     this.password = password;
-    this.users = [];
+    this.teams = [];
     this.gameServer = null;
   }
 
-  onPlayerJoin = (client: Client, password: string = ''): number => {
-    if (this.users.length < this.maxUser) {
-      if (!this.password || this.password === password) {
-        this.users.push({ client, state: 0, key: null });
-        this.checkIfFull();
-        return this.users.length;
-      }
+  onTeamJoin = (team: Team, affectedTeam: Team | null = null) => {
+    if (affectedTeam) {
+      team.players.forEach(player => {
+        affectedTeam.players.push(player);
+      });
+      affectedTeam.grade += team.grade;
+    } else {
+      this.teams.push(team);
     }
-    return 0;
+    team.players.forEach(player => {
+      player.client.userIndex = `Player ${uuid.v1()}`;
+    });
+    this.checkIfFull();
   };
 
   onPlayerJoinLobby = (client: Client) => {
-    const player = this.users.find(u => u.client === client);
+    const player = this.players().find(u => u.client === client);
     if (player) {
       player.state = 1;
       player.client.send('matchlobbyjoined', {
@@ -56,47 +79,46 @@ export default class Match {
         id: player.client.userIndex,
         ready: false,
       });
-      this.users.forEach((u: Player, index: number) => {
-        if (u !== player) {
-          player.client.send('playerjoinedlobby', {
-            id: index + 1,
-            ready: u.state === 2,
-          });
-        }
-      });
       return true;
     }
     return false;
   };
 
   onPlayerReadyLobby = (client: Client) => {
-    const player = this.users.find(u => u.client === client);
+    const player = this.players().find(u => u.client === client);
     if (player) {
-      const index = this.users.indexOf(player);
       player.state = 2;
-      this.broadcast('playerreadylobby', { id: index + 1 });
+      this.broadcast('playerreadylobby', { id: player.client.userIndex });
       this.checkIfWeCanStart();
       return true;
     }
     return false;
   };
 
-  onPlayerLeave = (client: Client) => {
-    const player = this.users.find(u => u.client === client);
-    if (player) {
-      const index = this.users.indexOf(player);
-      this.users.splice(index, 1);
-      this.isFull = false;
-      if (player.state !== 0) {
-        this.broadcast('playerleaved', { id: index + 1 });
+  onPlayerLeave = (client: Client, fromGameServer: boolean = false) => {
+    let player: Player | undefined;
+    let team: Team | undefined;
+    this.teams.forEach(potentialTeam => {
+      player = potentialTeam.players.find(u => u.client === client);
+      if (player) {
+        team = potentialTeam;
       }
-      if (this.hasStart && this.gameServer) {
+    });
+    if (player && team) {
+      const index = team.players.indexOf(player);
+      team.players.splice(index, 1);
+      this.isFull = false;
+      player.client.match = undefined;
+      if (player.state !== 0) {
+        this.broadcast('playerleaved', { id: player.client.userIndex });
+      }
+      if (this.hasStart && this.gameServer && !fromGameServer) {
         this.gameServer.send('removeuserfrommatch', {
           matchId: this.matchId,
           userKey: player.key,
         });
       }
-      if (this.users.length === 0) {
+      if (this.teams.length === 0) {
         if (this.hasStart && this.gameServer) {
           this.gameServer.send('deletematch', { matchId: this.matchId });
         }
@@ -105,11 +127,24 @@ export default class Match {
     }
   };
 
-  private startGame = () => {
-    this.gameServer = GetBestGameServer();
+  checkPassword = (password: string) =>
+    !this.password || this.password === password;
+
+  players = () => {
+    const players: Player[] = [];
+    this.teams.forEach(team => {
+      team.players.forEach(player => {
+        players.push(player);
+      });
+    });
+    return players;
+  };
+
+  protected startGame = () => {
+    this.gameServer = this.getBestGameServer();
     if (!this.gameServer) return;
     const keys = [];
-    for (const u of this.users) {
+    for (const u of this.players()) {
       u.key = uuid.v4();
       keys.push(u.key);
     }
@@ -117,32 +152,47 @@ export default class Match {
       keys,
       matchId: this.matchId,
       map: this.map,
+      type: this.type,
     });
-    for (const u of this.users) {
-      u.client.send('startmatch', { key: u.key, map: this.map });
+    for (const u of this.players()) {
+      u.client.send('startmatch', {
+        key: u.key,
+        map: this.map,
+        type: this.type,
+      });
     }
     this.hasStart = true;
   };
 
-  private checkIfWeCanStart = () => {
-    if (this.users.length < this.minUser) return;
-    const players = this.users.filter(u => u.state !== 2);
+  protected getBestGameServer = (): GameServerEntry | null => {
+    // TODO improve this
+    if (gameServers.length > 0) {
+      return gameServers[0];
+    }
+    return null;
+  };
+
+  protected checkIfWeCanStart = () => {
+    if (this.players().length < this.minUser) return;
+    const players = this.players().filter(u => u.state !== 2);
     if (players.length === 0) {
       this.startGame();
     }
   };
 
-  private checkIfFull = () => {
-    if (this.users.length === this.maxUser) {
+  protected checkIfFull = () => {
+    if (this.players().length === this.maxUser) {
       this.isFull = true;
     } else {
       this.isFull = false;
     }
   };
 
-  private broadcast = (type: string, data: any) => {
-    this.users.forEach((player: Player) => {
-      player.client.send(type, data);
+  protected broadcast = (type: string, data: any) => {
+    this.teams.forEach((team: Team) => {
+      team.players.forEach((player: Player) => {
+        player.client.send(type, data);
+      });
     });
   };
 }

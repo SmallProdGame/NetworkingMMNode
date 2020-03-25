@@ -11,6 +11,7 @@ const onUserData = (client, data) => {
     }
     catch (err) {
         console.error(`An error occured while handling client request !`);
+        console.error(data);
         console.error(err);
     }
 };
@@ -23,4 +24,5 @@ exports.onUserConnect = (socket) => {
     client.emit('connection', {});
     socket.on('data', (data) => onUserData(client, data));
     socket.on('end', () => onUserEnd(client));
+    socket.on('error', err => console.error(err));
 };

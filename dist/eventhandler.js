@@ -12,6 +12,9 @@ class EventHandler {
                 ev.func(data);
             }
         };
+        this.clearEvents = () => {
+            this.events = [];
+        };
     }
 }
 exports.default = EventHandler;

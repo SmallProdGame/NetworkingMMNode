@@ -1,28 +1,38 @@
 import Client from './client';
 import GameServerEntry from './gameserverentry';
-interface Player {
+export interface Player {
     client: Client;
     state: number;
     key: string | null;
 }
+export interface Team {
+    players: Player[];
+    grade: number;
+}
 export default class Match {
     hasStart: boolean;
     isFull: boolean;
+    nbPlayersPerTeam: number;
+    allowedGap: number;
     matchId: number;
     maxUser: number;
     minUser: number;
     map: string;
+    type: string;
     password: string;
-    users: Player[];
+    teams: Team[];
     gameServer: GameServerEntry | null;
-    constructor(maxUser: number, minUser: number, map: string, password: string);
-    onPlayerJoin: (client: Client, password?: string) => number;
+    async: boolean;
+    constructor(maxUser: number, minUser: number, map: string, type: string, password: string, nbPlayersPerTeam: number, allowedGap: number);
+    onTeamJoin: (team: Team, affectedTeam?: Team | null) => void;
     onPlayerJoinLobby: (client: Client) => boolean;
     onPlayerReadyLobby: (client: Client) => boolean;
-    onPlayerLeave: (client: Client) => void;
-    private startGame;
-    private checkIfWeCanStart;
-    private checkIfFull;
-    private broadcast;
+    onPlayerLeave: (client: Client, fromGameServer?: boolean) => void;
+    checkPassword: (password: string) => boolean;
+    players: () => Player[];
+    protected startGame: () => void;
+    protected getBestGameServer: () => GameServerEntry | null;
+    protected checkIfWeCanStart: () => void;
+    protected checkIfFull: () => void;
+    protected broadcast: (type: string, data: any) => void;
 }
-export {};

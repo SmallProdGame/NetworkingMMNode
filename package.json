@@ -1,6 +1,6 @@
 {
     "name": "@smallprod/game-networking-mm",
-    "version": "0.0.2",
+    "version": "0.0.13",
     "main": "dist/index.js",
     "types": "dist/index.d.ts",
     "description": "Game Networking Matchmaking by SmallProdGame",

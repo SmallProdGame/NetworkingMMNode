@@ -12,9 +12,11 @@ const onUserData = (client: Client, data: string) => {
     }
   } catch (err) {
     console.error(`An error occured while handling client request !`);
+    console.error(data);
     console.error(err);
   }
 };
+
 const onUserEnd = (client: Client) => {
   console.log('User disconnected !');
   client.emit('disconnection', {});
@@ -25,4 +27,5 @@ export const onUserConnect = (socket: Socket) => {
   client.emit('connection', {});
   socket.on('data', (data: string) => onUserData(client, data));
   socket.on('end', () => onUserEnd(client));
+  socket.on('error', err => console.error(err));
 };

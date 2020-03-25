@@ -5,24 +5,30 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const uuid_1 = __importDefault(require("uuid"));
 const matchmakingmanager_1 = require("./matchmakingmanager");
-const gameserver_1 = require("./gameserver");
-const utils_1 = require("./utils");
+const gameserver_1 = __importDefault(require("./gameserver"));
+const utils_1 = __importDefault(require("./utils"));
 class Match {
-    constructor(maxUser, minUser, map, password) {
+    constructor(maxUser, minUser, map, type, password, nbPlayersPerTeam, allowedGap) {
         this.hasStart = false;
         this.isFull = false;
-        this.onPlayerJoin = (client, password = '') => {
-            if (this.users.length < this.maxUser) {
-                if (!this.password || this.password === password) {
-                    this.users.push({ client, state: 0, key: null });
-                    this.checkIfFull();
-                    return this.users.length;
-                }
+        this.async = false;
+        this.onTeamJoin = (team, affectedTeam = null) => {
+            if (affectedTeam) {
+                team.players.forEach(player => {
+                    affectedTeam.players.push(player);
+                });
+                affectedTeam.grade += team.grade;
             }
-            return 0;
+            else {
+                this.teams.push(team);
+            }
+            team.players.forEach(player => {
+                player.client.userIndex = `Player ${uuid_1.default.v1()}`;
+            });
+            this.checkIfFull();
         };
         this.onPlayerJoinLobby = (client) => {
-            const player = this.users.find(u => u.client === client);
+            const player = this.players().find(u => u.client === client);
             if (player) {
                 player.state = 1;
                 player.client.send('matchlobbyjoined', {
@@ -33,45 +39,44 @@ class Match {
                     id: player.client.userIndex,
                     ready: false,
                 });
-                this.users.forEach((u, index) => {
-                    if (u !== player) {
-                        player.client.send('playerjoinedlobby', {
-                            id: index + 1,
-                            ready: u.state === 2,
-                        });
-                    }
-                });
                 return true;
             }
             return false;
         };
         this.onPlayerReadyLobby = (client) => {
-            const player = this.users.find(u => u.client === client);
+            const player = this.players().find(u => u.client === client);
             if (player) {
-                const index = this.users.indexOf(player);
                 player.state = 2;
-                this.broadcast('playerreadylobby', { id: index + 1 });
+                this.broadcast('playerreadylobby', { id: player.client.userIndex });
                 this.checkIfWeCanStart();
                 return true;
             }
             return false;
         };
-        this.onPlayerLeave = (client) => {
-            const player = this.users.find(u => u.client === client);
-            if (player) {
-                const index = this.users.indexOf(player);
-                this.users.splice(index, 1);
-                this.isFull = false;
-                if (player.state !== 0) {
-                    this.broadcast('playerleaved', { id: index + 1 });
+        this.onPlayerLeave = (client, fromGameServer = false) => {
+            let player;
+            let team;
+            this.teams.forEach(potentialTeam => {
+                player = potentialTeam.players.find(u => u.client === client);
+                if (player) {
+                    team = potentialTeam;
                 }
-                if (this.hasStart && this.gameServer) {
+            });
+            if (player && team) {
+                const index = team.players.indexOf(player);
+                team.players.splice(index, 1);
+                this.isFull = false;
+                player.client.match = undefined;
+                if (player.state !== 0) {
+                    this.broadcast('playerleaved', { id: player.client.userIndex });
+                }
+                if (this.hasStart && this.gameServer && !fromGameServer) {
                     this.gameServer.send('removeuserfrommatch', {
                         matchId: this.matchId,
                         userKey: player.key,
                     });
                 }
-                if (this.users.length === 0) {
+                if (this.teams.length === 0) {
                     if (this.hasStart && this.gameServer) {
                         this.gameServer.send('deletematch', { matchId: this.matchId });
                     }
@@ -79,12 +84,22 @@ class Match {
                 }
             }
         };
+        this.checkPassword = (password) => !this.password || this.password === password;
+        this.players = () => {
+            const players = [];
+            this.teams.forEach(team => {
+                team.players.forEach(player => {
+                    players.push(player);
+                });
+            });
+            return players;
+        };
         this.startGame = () => {
-            this.gameServer = gameserver_1.GetBestGameServer();
+            this.gameServer = this.getBestGameServer();
             if (!this.gameServer)
                 return;
             const keys = [];
-            for (const u of this.users) {
+            for (const u of this.players()) {
                 u.key = uuid_1.default.v4();
                 keys.push(u.key);
             }
@@ -92,22 +107,33 @@ class Match {
                 keys,
                 matchId: this.matchId,
                 map: this.map,
+                type: this.type,
             });
-            for (const u of this.users) {
-                u.client.send('startmatch', { key: u.key, map: this.map });
+            for (const u of this.players()) {
+                u.client.send('startmatch', {
+                    key: u.key,
+                    map: this.map,
+                    type: this.type,
+                });
             }
             this.hasStart = true;
         };
+        this.getBestGameServer = () => {
+            if (gameserver_1.default.length > 0) {
+                return gameserver_1.default[0];
+            }
+            return null;
+        };
         this.checkIfWeCanStart = () => {
-            if (this.users.length < this.minUser)
+            if (this.players().length < this.minUser)
                 return;
-            const players = this.users.filter(u => u.state !== 2);
+            const players = this.players().filter(u => u.state !== 2);
             if (players.length === 0) {
                 this.startGame();
             }
         };
         this.checkIfFull = () => {
-            if (this.users.length === this.maxUser) {
+            if (this.players().length === this.maxUser) {
                 this.isFull = true;
             }
             else {
@@ -115,16 +141,21 @@ class Match {
             }
         };
         this.broadcast = (type, data) => {
-            this.users.forEach((player) => {
-                player.client.send(type, data);
+            this.teams.forEach((team) => {
+                team.players.forEach((player) => {
+                    player.client.send(type, data);
+                });
             });
         };
-        this.matchId = utils_1.randomInt(1, 10000000);
+        this.matchId = utils_1.default.randomInt(1, 10000000);
         this.maxUser = maxUser;
         this.minUser = minUser;
+        this.nbPlayersPerTeam = nbPlayersPerTeam;
+        this.allowedGap = allowedGap;
         this.map = map;
+        this.type = type;
         this.password = password;
-        this.users = [];
+        this.teams = [];
         this.gameServer = null;
     }
 }

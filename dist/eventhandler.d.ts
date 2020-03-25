@@ -6,5 +6,6 @@ export default class EventHandler {
     events: Event[];
     on: (type: string, func: (data: any) => void) => void;
     emit: (type: string, data: any) => void;
+    clearEvents: () => void;
 }
 export {};

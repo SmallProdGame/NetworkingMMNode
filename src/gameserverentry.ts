@@ -1,5 +1,6 @@
 import EventHandler from './eventhandler';
 import { Socket } from 'net';
+import { matchs } from './matchmakingmanager';
 
 export default class GameServerEntry extends EventHandler {
   socket: Socket;
@@ -12,16 +13,27 @@ export default class GameServerEntry extends EventHandler {
   }
 
   registerEvents = () => {
-    // TODO this
+    this.on('playerleave', this.onPlayerLeave);
+  };
+
+  onPlayerLeave = (data: any) => {
+    const match = matchs.find(m => m.matchId === data.matchId);
+    if (match) {
+      const player = match.players().find(u => u.key === data.key);
+      if (player) {
+        match.onPlayerLeave(player.client, true);
+      }
+    }
   };
 
   send = (type: string, data: any) => {
     try {
+      if (!this.socket.writable) return;
       this.socket.write(
-        JSON.stringify({
+        `${JSON.stringify({
           type,
           data: JSON.stringify(data),
-        }),
+        })}\\n`,
       );
     } catch (err) {
       console.error(err);
