@@ -13,16 +13,42 @@ export default class GameServerEntry extends EventHandler {
   }
 
   registerEvents = () => {
-    this.on('playerleave', this.onPlayerLeave);
+    this.on('match_created', this.onMatchCreated);
+    this.on('match_deleted', this.onMatchDeleted);
+    this.on('user_removed', this.onUserRemoved);
+    this.on('player_leaved', this.onPlayerLeaved);
+    this.on('match_end', this.onMatchEnd);
   };
 
-  onPlayerLeave = (data: any) => {
+  onMatchCreated = (data: any) => {
+    const match = matchs.find(m => m.matchId === data.matchId);
+    if (match) {
+      match.startMatch();
+    }
+  };
+
+  onMatchDeleted = (data: any) => {
+    // Do nothing here
+  };
+
+  onUserRemoved = (data: any) => {
+    // Do nothing here
+  };
+
+  onPlayerLeaved = (data: any) => {
     const match = matchs.find(m => m.matchId === data.matchId);
     if (match) {
       const player = match.players().find(u => u.key === data.key);
       if (player) {
         match.onPlayerLeave(player.client, true);
       }
+    }
+  };
+
+  onMatchEnd = (data: any) => {
+    const match = matchs.find(m => m.matchId === data.matchId);
+    if (match) {
+      match.endMatch();
     }
   };
 

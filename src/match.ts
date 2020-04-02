@@ -14,6 +14,7 @@ export interface Player {
 export interface Team {
   players: Player[];
   grade: number;
+  id: string;
 }
 
 export default class Match {
@@ -62,22 +63,46 @@ export default class Match {
       this.teams.push(team);
     }
     team.players.forEach(player => {
-      player.client.userIndex = `Player ${uuid.v1()}`;
+      player.client.userIndex = this.getPlayerIndex(player.client);
     });
     this.checkIfFull();
   };
 
   onPlayerJoinLobby = (client: Client) => {
-    const player = this.players().find(u => u.client === client);
-    if (player) {
-      player.state = 1;
-      player.client.send('matchlobbyjoined', {
-        matchId: this.matchId,
-        userId: player.client.userIndex,
+    let player: Player | undefined;
+    let team: Team | undefined;
+    this.teams.forEach(potentialTeam => {
+      player = potentialTeam.players.find(u => u.client === client);
+      if (player) {
+        team = potentialTeam;
+      }
+    });
+    if (player && team) {
+      team.players.forEach(pla => {
+        pla.state = 1;
+        pla.client.send('match_joined', {
+          matchId: this.matchId,
+          userId: pla.client.userIndex,
+        });
       });
-      this.broadcast('playerjoinedlobby', {
-        id: player.client.userIndex,
-        ready: false,
+      this.broadcast('match_team_joined', {
+        players: team.players.map(pla => ({
+          userId: pla.client.userIndex,
+          ready: false,
+        })),
+        teamId: team.id,
+      });
+      this.teams.forEach(otherTeam => {
+        if (!team) return;
+        team.players.forEach(pla => {
+          pla.client.send('match_team_joined', {
+            players: otherTeam.players.map(p => ({
+              userId: p.client.userIndex,
+              ready: p.state === 2,
+            })),
+            teamId: otherTeam.id,
+          });
+        });
       });
       return true;
     }
@@ -88,7 +113,10 @@ export default class Match {
     const player = this.players().find(u => u.client === client);
     if (player) {
       player.state = 2;
-      this.broadcast('playerreadylobby', { id: player.client.userIndex });
+      player.client.send('match_ready', {
+        matchId: this.matchId,
+      });
+      this.broadcast('match_player_ready', { userId: player.client.userIndex });
       this.checkIfWeCanStart();
       return true;
     }
@@ -105,22 +133,35 @@ export default class Match {
       }
     });
     if (player && team) {
-      const index = team.players.indexOf(player);
-      team.players.splice(index, 1);
       this.isFull = false;
-      player.client.match = undefined;
-      if (player.state !== 0) {
-        this.broadcast('playerleaved', { id: player.client.userIndex });
+
+      if (this.hasStart) {
+        // Only remove player if match has start
+        player.client.match = undefined;
+        const index = team.players.indexOf(player);
+        team.players.splice(index, 1);
+        if (player.state !== 0) {
+          this.broadcast('match_player_leaved', {
+            userId: player.client.userIndex,
+          });
+        }
+      } else {
+        // Remove the whole team if match has not started
+        const index = this.teams.indexOf(team);
+        this.teams.splice(index, 1);
+        if (player.state !== 0) {
+          this.broadcast('match_team_leaved', { teamId: team.id });
+        }
       }
       if (this.hasStart && this.gameServer && !fromGameServer) {
-        this.gameServer.send('removeuserfrommatch', {
+        this.gameServer.send('remove_user', {
           matchId: this.matchId,
           userKey: player.key,
         });
       }
       if (this.teams.length === 0) {
         if (this.hasStart && this.gameServer) {
-          this.gameServer.send('deletematch', { matchId: this.matchId });
+          this.gameServer.send('delete_match', { matchId: this.matchId });
         }
         removeMatch(this);
       }
@@ -140,7 +181,30 @@ export default class Match {
     return players;
   };
 
-  protected startGame = () => {
+  startMatch = () => {
+    for (const u of this.players()) {
+      u.client.send('match_start', {
+        key: u.key,
+        map: this.map,
+        type: this.type,
+      });
+    }
+  };
+
+  endMatch = () => {
+    this.teams.forEach(team => {
+      team.players.forEach(player => {
+        player.client.match = undefined;
+      });
+    });
+    removeMatch(this);
+  };
+
+  protected getPlayerIndex = (client: Client) => {
+    return `Player ${uuid.v1()}`;
+  };
+
+  protected createMatch = () => {
     this.gameServer = this.getBestGameServer();
     if (!this.gameServer) return;
     const keys = [];
@@ -148,19 +212,12 @@ export default class Match {
       u.key = uuid.v4();
       keys.push(u.key);
     }
-    this.gameServer.send('creatematch', {
+    this.gameServer.send('create_match', {
       keys,
       matchId: this.matchId,
       map: this.map,
       type: this.type,
     });
-    for (const u of this.players()) {
-      u.client.send('startmatch', {
-        key: u.key,
-        map: this.map,
-        type: this.type,
-      });
-    }
     this.hasStart = true;
   };
 
@@ -176,7 +233,7 @@ export default class Match {
     if (this.players().length < this.minUser) return;
     const players = this.players().filter(u => u.state !== 2);
     if (players.length === 0) {
-      this.startGame();
+      this.createMatch();
     }
   };
 

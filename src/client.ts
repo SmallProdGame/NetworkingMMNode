@@ -1,4 +1,5 @@
 import { Socket } from 'net';
+import uuid from 'uuid';
 import Match, { Team } from './match';
 import { matchs, addMatch, waitingTeams } from './matchmakingmanager';
 import EventHandler from './eventhandler';
@@ -7,6 +8,7 @@ export default class Client extends EventHandler {
   match: Match | undefined = undefined;
   socket: Socket;
   userIndex = '';
+  findingMatch = false;
 
   constructor(socket: Socket) {
     super();
@@ -15,15 +17,19 @@ export default class Client extends EventHandler {
   }
 
   registerEvents = () => {
-    this.on('findmatch', this.onFindMatch);
-    this.on('creatematch', this.onCreateMatch);
-    this.on('joinmatchlobby', this.onJoinMatchLobby);
-    this.on('readymatchlobby', this.onReadyMatchLobby);
-    this.on('disconnection', this.onLeave);
+    this.on('find_match', this.onFindMatch);
+    this.on('cancel_find_match', this.onCancelFindMatch);
+    this.on('create_match', this.onCreateMatch);
+    this.on('join_match', this.onJoinMatch);
+    this.on('refuse_match', this.onRefuseMatch);
+    this.on('ready_match', this.onReadyMatch);
+    this.on('leave_match', this.onLeaveMatch);
+    this.on('disconnection', this.onDisconnect);
   };
 
   onFindMatch = (data: any) => {
     if (this.match) return;
+    this.findingMatch = true;
     const match = this.findMatchSync(
       data.maxUser,
       data.minUser,
@@ -34,8 +40,15 @@ export default class Client extends EventHandler {
       0,
       0,
     );
-    this.send('matchfound', { matchId: match.matchId, userId: this.userIndex });
+    if (!this.findingMatch) return;
+    this.send('match_found', {
+      matchId: match.matchId,
+    });
     this.match = match;
+  };
+
+  onCancelFindMatch = (data: any) => {
+    this.findingMatch = false;
   };
 
   onCreateMatch = (data: any) => {
@@ -50,21 +63,24 @@ export default class Client extends EventHandler {
       data.allowedGap,
     );
     addMatch(match);
+    this.send('match_created', {
+      matchId: match.matchId,
+    });
     match.onTeamJoin(this.createTeam(0, [this]));
     match.onPlayerJoinLobby(this);
     this.match = match;
   };
 
-  onJoinMatchLobby = (data: any) => {
+  onJoinMatch = (data: any) => {
     let match = this.match;
     if (!match) {
       match = matchs.find(ma => ma.matchId === data.matchId);
       if (!match) {
-        this.send('matchnotfound', {});
+        this.send('match_notfound', {});
         return;
       }
       if (!match.checkPassword(data.password)) {
-        this.send('matchwrongpassword', {});
+        this.send('match_wrongpassword', {});
       }
       match.onTeamJoin(this.createTeam(0, [this]));
       this.match = match;
@@ -73,12 +89,22 @@ export default class Client extends EventHandler {
     this.match.onPlayerJoinLobby(this);
   };
 
-  onReadyMatchLobby = (data: any) => {
+  onRefuseMatch = (data: any) => {
+    if (!this.match) return;
+    this.match.onPlayerLeave(this);
+  };
+
+  onReadyMatch = (data: any) => {
     if (!this.match) return;
     this.match.onPlayerReadyLobby(this);
   };
 
-  onLeave = () => {
+  onLeaveMatch = (data: any) => {
+    if (!this.match) return;
+    this.match.onPlayerLeave(this);
+  };
+
+  onDisconnect = () => {
     if (this.match) {
       this.match.onPlayerLeave(this);
     }
@@ -232,6 +258,7 @@ export default class Client extends EventHandler {
     const team: Team = {
       players: [],
       grade: teamGrade,
+      id: uuid.v4(),
     };
     players.forEach(player => {
       team.players.push({

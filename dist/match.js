@@ -23,7 +23,7 @@ class Match {
                 this.teams.push(team);
             }
             team.players.forEach(player => {
-                player.client.userIndex = `Player ${uuid_1.default.v1()}`;
+                player.client.userIndex = this.getPlayerIndex(player.client);
             });
             this.checkIfFull();
         };
@@ -93,6 +93,9 @@ class Match {
                 });
             });
             return players;
+        };
+        this.getPlayerIndex = (client) => {
+            return `Player ${uuid_1.default.v1()}`;
         };
         this.startGame = () => {
             this.gameServer = this.getBestGameServer();

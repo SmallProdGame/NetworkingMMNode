@@ -1,6 +1,6 @@
 {
     "name": "@smallprod/game-networking-mm",
-    "version": "0.0.13",
+    "version": "0.0.15",
     "main": "dist/index.js",
     "types": "dist/index.d.ts",
     "description": "Game Networking Matchmaking by SmallProdGame",
@@ -17,16 +17,16 @@
     "license": "MIT",
     "author": "SmallProdGame staff <smallprodgame@gmail.com>",
     "devDependencies": {
-        "@types/node": "^12.7.4",
-        "@types/uuid": "^3.4.6",
-        "prettier": "^1.18.2",
-        "ts-loader": "^6.0.4",
-        "tslint": "^5.19.0",
-        "tslint-config-airbnb": "^5.11.1",
+        "@types/node": "^13.9.8",
+        "@types/uuid": "^7.0.2",
+        "prettier": "^2.0.2",
+        "ts-loader": "^6.2.2",
+        "tslint": "^6.1.1",
+        "tslint-config-airbnb": "^5.11.2",
         "tslint-config-prettier": "^1.18.0",
-        "tslint-plugin-prettier": "^2.0.1",
-        "typescript": "^3.6.2",
-        "uuid": "^3.3.3"
+        "tslint-plugin-prettier": "^2.3.0",
+        "typescript": "^3.8.3",
+        "uuid": "^7.0.3"
     },
     "scripts": {
         "build": "tsc --project tsconfig.json",

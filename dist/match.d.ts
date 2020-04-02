@@ -30,6 +30,7 @@ export default class Match {
     onPlayerLeave: (client: Client, fromGameServer?: boolean) => void;
     checkPassword: (password: string) => boolean;
     players: () => Player[];
+    protected getPlayerIndex: (client: Client) => string;
     protected startGame: () => void;
     protected getBestGameServer: () => GameServerEntry | null;
     protected checkIfWeCanStart: () => void;

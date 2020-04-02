@@ -5,7 +5,12 @@ interface Event {
 export default class EventHandler {
   events: Event[] = [];
   on = (type: string, func: (data: any) => void) => {
-    this.events.push({ type, func });
+    const event = this.events.find(e => e.type === type);
+    if (event) {
+      event.func = func;
+    } else {
+      this.events.push({ type, func });
+    }
   };
 
   emit = (type: string, data: any) => {
