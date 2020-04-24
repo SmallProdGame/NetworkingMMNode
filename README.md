@@ -4,9 +4,8 @@
 
 This NodeJS application has been made to work with the Unity3D package SmallProdGame Networking
 which is a networking solution that you can use with DOTS.
-You can find this package here https://github.com/SmallProdGame/NetworkingUnity .
+You can find this package here https://github.com/SmallProdGame/UnityNetworking .
 
-This project is still in Alpha and may not work perfectly.
 
 ## How to use it?
 
@@ -28,9 +27,7 @@ In this file just had something like this:
 ```ts
 import MatchMaking from '@smallprod/game-networking-mm';
 
-(async () => {
-  MatchMaking.startServers(8081, 8080);
-})();
+MatchMaking.startServers(8081, 8080);
 ```
 
 This is **Typescript** but you can adapt it to **Javascript** easily.
@@ -38,3 +35,5 @@ This is **Typescript** but you can adapt it to **Javascript** easily.
 This is the simplest thing you can do, it will create two TCP servers, one for your players listenning on the port 8080 and one for your game servers listenning on the port 8081.
 
 If you want to customize this server, it's totally possible, you can override a lot's of things to make it work as you want!
+
+For more information just look at the [wiki](https://github.com/SmallProdGame/NetworkingMMNode/wiki)
