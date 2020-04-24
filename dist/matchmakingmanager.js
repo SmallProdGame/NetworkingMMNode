@@ -3,8 +3,8 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-const client_1 = __importDefault(require("./client"));
-const gameserverentry_1 = __importDefault(require("./gameserverentry"));
+const player_1 = __importDefault(require("./player"));
+const gameserver_1 = __importDefault(require("./gameserver"));
 exports.matchs = [];
 exports.waitingTeams = [];
 exports.addMatch = (match) => {
@@ -15,10 +15,10 @@ exports.removeMatch = (match) => {
     exports.matchs.splice(index, 1);
 };
 let clientCreator = (socket) => {
-    return new client_1.default(socket);
+    return new player_1.default(socket);
 };
 let gameServerCreator = (socket) => {
-    return new gameserverentry_1.default(socket);
+    return new gameserver_1.default(socket);
 };
 exports.setClientCreator = (creator) => {
     clientCreator = creator;
@@ -31,13 +31,4 @@ exports.createClient = (socket) => {
 };
 exports.createGameServer = (socket) => {
     return gameServerCreator(socket);
-};
-exports.default = {
-    matchs: exports.matchs,
-    addMatch: exports.addMatch,
-    removeMatch: exports.removeMatch,
-    setClientCreator: exports.setClientCreator,
-    createClient: exports.createClient,
-    setGameServerCreator: exports.setGameServerCreator,
-    createGameServer: exports.createGameServer,
 };

@@ -1,36 +1,23 @@
-import uuid from 'uuid';
-import Client from './client';
-import { removeMatch } from './matchmakingmanager';
-import gameServers from './gameserver';
-import GameServerEntry from './gameserverentry';
+import { v4 as uuidv4, v1 as uuidv1 } from 'uuid';
+import Player from './player';
+import { removeMatch, MatchTeam, MatchPlayer } from './matchmakingmanager';
+import GameServer from './gameserver';
 import utils from './utils';
 
-export interface Player {
-  client: Client;
-  state: number;
-  key: string | null;
-}
-
-export interface Team {
-  players: Player[];
-  grade: number;
-  id: string;
-}
-
-export default class Match {
-  hasStart = false;
-  isFull = false;
-  nbPlayersPerTeam: number;
-  allowedGap: number;
-  matchId: number;
-  maxUser: number;
-  minUser: number;
-  map: string;
-  type: string;
-  password: string;
-  teams: Team[];
-  gameServer: GameServerEntry | null;
-  async = false;
+export class Match {
+  public hasStart = false;
+  public isFull = false;
+  public nbPlayersPerTeam: number;
+  public allowedGap: number;
+  public matchId: number;
+  public maxUser: number;
+  public minUser: number;
+  public map: string;
+  public type: string;
+  public password: string;
+  public teams: MatchTeam[];
+  protected gameServer: GameServer | null;
+  protected async = false;
 
   constructor(
     maxUser: number,
@@ -53,64 +40,71 @@ export default class Match {
     this.gameServer = null;
   }
 
-  onTeamJoin = (team: Team, affectedTeam: Team | null = null) => {
+  public onTeamJoin = (
+    team: MatchTeam,
+    affectedTeam: MatchTeam | null = null,
+  ) => {
     if (affectedTeam) {
-      team.players.forEach(player => {
+      team.players.forEach((player) => {
         affectedTeam.players.push(player);
       });
       affectedTeam.grade += team.grade;
     } else {
       this.teams.push(team);
     }
-    team.players.forEach(player => {
+    team.players.forEach((player) => {
       player.client.userIndex = this.getPlayerIndex(player.client);
     });
     this.checkIfFull();
   };
 
-  onPlayerJoinLobby = (client: Client) => {
-    let player: Player | undefined;
-    let team: Team | undefined;
-    this.teams.forEach(potentialTeam => {
-      player = potentialTeam.players.find(u => u.client === client);
+  public onPlayerJoinLobby = (client: Player) => {
+    let player: MatchPlayer | undefined;
+    let team: MatchTeam | undefined;
+    this.teams.forEach((potentialTeam) => {
+      player = potentialTeam.players.find((u) => u.client === client);
       if (player) {
         team = potentialTeam;
       }
     });
     if (player && team) {
-      team.players.forEach(pla => {
+      team.state = 1;
+      team.players.forEach((pla) => {
         pla.state = 1;
         pla.client.send('match_joined', {
           matchId: this.matchId,
           userId: pla.client.userIndex,
+          teamId: team?.id,
         });
       });
       this.broadcast('match_team_joined', {
-        players: team.players.map(pla => ({
+        players: team.players.map((pla) => ({
           userId: pla.client.userIndex,
           ready: false,
         })),
         teamId: team.id,
       });
-      this.teams.forEach(otherTeam => {
+      this.teams.forEach((otherTeam) => {
         if (!team) return;
-        team.players.forEach(pla => {
-          pla.client.send('match_team_joined', {
-            players: otherTeam.players.map(p => ({
-              userId: p.client.userIndex,
-              ready: p.state === 2,
-            })),
-            teamId: otherTeam.id,
+        if (otherTeam.state !== 0) {
+          team.players.forEach((pla) => {
+            pla.client.send('match_team_joined', {
+              players: otherTeam.players.map((p) => ({
+                userId: p.client.userIndex,
+                ready: p.state === 2,
+              })),
+              teamId: otherTeam.id,
+            });
           });
-        });
+        }
       });
       return true;
     }
     return false;
   };
 
-  onPlayerReadyLobby = (client: Client) => {
-    const player = this.players().find(u => u.client === client);
+  public onPlayerReadyLobby = (client: Player) => {
+    const player = this.players().find((u) => u.client === client);
     if (player) {
       player.state = 2;
       player.client.send('match_ready', {
@@ -123,11 +117,11 @@ export default class Match {
     return false;
   };
 
-  onPlayerLeave = (client: Client, fromGameServer: boolean = false) => {
-    let player: Player | undefined;
-    let team: Team | undefined;
-    this.teams.forEach(potentialTeam => {
-      player = potentialTeam.players.find(u => u.client === client);
+  public onPlayerLeave = (client: Player, fromGameServer: boolean = false) => {
+    let player: MatchPlayer | undefined;
+    let team: MatchTeam | undefined;
+    this.teams.forEach((potentialTeam) => {
+      player = potentialTeam.players.find((u) => u.client === client);
       if (player) {
         team = potentialTeam;
       }
@@ -140,7 +134,7 @@ export default class Match {
         player.client.match = undefined;
         const index = team.players.indexOf(player);
         team.players.splice(index, 1);
-        if (player.state !== 0) {
+        if (team.state !== 0) {
           this.broadcast('match_player_leaved', {
             userId: player.client.userIndex,
           });
@@ -149,7 +143,7 @@ export default class Match {
         // Remove the whole team if match has not started
         const index = this.teams.indexOf(team);
         this.teams.splice(index, 1);
-        if (player.state !== 0) {
+        if (team.state !== 0) {
           this.broadcast('match_team_leaved', { teamId: team.id });
         }
       }
@@ -168,20 +162,20 @@ export default class Match {
     }
   };
 
-  checkPassword = (password: string) =>
+  public checkPassword = (password: string) =>
     !this.password || this.password === password;
 
-  players = () => {
-    const players: Player[] = [];
-    this.teams.forEach(team => {
-      team.players.forEach(player => {
+  public players = () => {
+    const players: MatchPlayer[] = [];
+    this.teams.forEach((team) => {
+      team.players.forEach((player) => {
         players.push(player);
       });
     });
     return players;
   };
 
-  startMatch = () => {
+  public startMatch = () => {
     for (const u of this.players()) {
       u.client.send('match_start', {
         key: u.key,
@@ -191,17 +185,17 @@ export default class Match {
     }
   };
 
-  endMatch = () => {
-    this.teams.forEach(team => {
-      team.players.forEach(player => {
+  public endMatch = () => {
+    this.teams.forEach((team) => {
+      team.players.forEach((player) => {
         player.client.match = undefined;
       });
     });
     removeMatch(this);
   };
 
-  protected getPlayerIndex = (client: Client) => {
-    return `Player ${uuid.v1()}`;
+  protected getPlayerIndex = (client: Player) => {
+    return `Player ${uuidv1()}`;
   };
 
   protected createMatch = () => {
@@ -209,7 +203,7 @@ export default class Match {
     if (!this.gameServer) return;
     const keys = [];
     for (const u of this.players()) {
-      u.key = uuid.v4();
+      u.key = uuidv4();
       keys.push(u.key);
     }
     this.gameServer.send('create_match', {
@@ -221,17 +215,18 @@ export default class Match {
     this.hasStart = true;
   };
 
-  protected getBestGameServer = (): GameServerEntry | null => {
+  protected getBestGameServer = (): GameServer | null => {
     // TODO improve this
-    if (gameServers.length > 0) {
-      return gameServers[0];
+    if (GameServer.gameServers.length > 0) {
+      const nb: number = utils.randomInt(0, GameServer.gameServers.length - 1);
+      return GameServer.gameServers[nb];
     }
     return null;
   };
 
   protected checkIfWeCanStart = () => {
     if (this.players().length < this.minUser) return;
-    const players = this.players().filter(u => u.state !== 2);
+    const players = this.players().filter((u) => u.state !== 2);
     if (players.length === 0) {
       this.createMatch();
     }
@@ -246,8 +241,8 @@ export default class Match {
   };
 
   protected broadcast = (type: string, data: any) => {
-    this.teams.forEach((team: Team) => {
-      team.players.forEach((player: Player) => {
+    this.teams.forEach((team: MatchTeam) => {
+      team.players.forEach((player: MatchPlayer) => {
         player.client.send(type, data);
       });
     });

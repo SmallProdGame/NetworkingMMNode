@@ -1,18 +1,15 @@
 import serverutil from './serverutil';
-import { onUserConnect } from './userserver';
-import { onServerConnect } from './gameserver';
-import Client from './client';
-import GameServerEntry from './gameserverentry';
-import MatchMakingManager from './matchmakingmanager';
-import Match from './match';
+import { onUserConnect } from './player.server.manager';
+import { onServerConnect, setMatchServerKey } from './game.server.manager';
+import * as match from './matchmakingmanager';
 
 export const startServers = (serverPort: number, clientPort: number) => {
   try {
-    const userServer = serverutil(onUserConnect).on('error', err => {
+    const userServer = serverutil(onUserConnect).on('error', (err) => {
       console.error(err);
     });
 
-    const gameServer = serverutil(onServerConnect).on('error', err => {
+    const gameServer = serverutil(onServerConnect).on('error', (err) => {
       console.error(err);
     });
     userServer.listen({ port: clientPort }, () => {
@@ -28,10 +25,12 @@ export const startServers = (serverPort: number, clientPort: number) => {
 
 export default {
   startServers,
-  Client,
-  GameServerEntry,
-  Match,
-  MatchMakingManager,
+  match,
+  gameServer: {
+    setMatchServerKey,
+  },
 };
 
-export { Player } from './match';
+export * as Player from './player';
+export * as GameServer from './gameserver';
+export * as Match from './match';

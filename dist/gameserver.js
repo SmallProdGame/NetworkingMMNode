@@ -1,51 +1,62 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
+const eventhandler_1 = __importDefault(require("./eventhandler"));
 const matchmakingmanager_1 = require("./matchmakingmanager");
-const matchServerKey = 'kujyrhtezd852jy7h7r8451d20cj8y45th1bgf2';
-const gameServers = [];
-exports.default = gameServers;
-const onServerData = (server, data) => {
-    try {
-        const d = JSON.parse(data);
-        if (d.type && d.data) {
-            const da = JSON.parse(d.data);
-            if (d.type === 'connection') {
-                if (da.key === matchServerKey) {
-                    console.log('New connection on game server !');
-                    server.authenticated = true;
-                    gameServers.push(server);
-                }
-                else {
-                    server.socket.end();
+class GameServer extends eventhandler_1.default {
+    constructor(socket) {
+        super();
+        this.authenticated = false;
+        this.send = (type, data) => {
+            try {
+                if (!this.socket.writable)
+                    return;
+                this.socket.write(`${JSON.stringify({
+                    type,
+                    data: JSON.stringify(data),
+                })}\\n`);
+            }
+            catch (err) {
+                console.error(err);
+            }
+        };
+        this.registerEvents = () => {
+            this.on('match_created', this.onMatchCreated);
+            this.on('match_deleted', this.onMatchDeleted);
+            this.on('user_removed', this.onUserRemoved);
+            this.on('player_leaved', this.onPlayerLeaved);
+            this.on('match_end', this.onMatchEnd);
+        };
+        this.onMatchCreated = (data) => {
+            const match = matchmakingmanager_1.matchs.find((m) => m.matchId === data.matchId);
+            if (match) {
+                match.startMatch();
+            }
+        };
+        this.onMatchDeleted = (data) => {
+        };
+        this.onUserRemoved = (data) => {
+        };
+        this.onPlayerLeaved = (data) => {
+            const match = matchmakingmanager_1.matchs.find((m) => m.matchId === data.matchId);
+            if (match) {
+                const player = match.players().find((u) => u.key === data.key);
+                if (player) {
+                    match.onPlayerLeave(player.client, true);
                 }
             }
-            else {
-                if (!server.authenticated) {
-                    server.socket.end();
-                }
-                else {
-                    server.emit(d.type, da);
-                }
+        };
+        this.onMatchEnd = (data) => {
+            const match = matchmakingmanager_1.matchs.find((m) => m.matchId === data.matchId);
+            if (match) {
+                match.endMatch();
             }
-        }
+        };
+        this.socket = socket;
+        this.registerEvents();
     }
-    catch (err) {
-        console.error('An error occured while handling match server request !');
-        console.error(data);
-        console.error(err);
-    }
-};
-const onServerEnd = (server) => {
-    console.log('Game server disconnection !');
-    const index = gameServers.indexOf(server);
-    gameServers.splice(index, 1);
-    server.emit('disconnection', {});
-    console.log('Nb: ', gameServers.length);
-};
-exports.onServerConnect = (socket) => {
-    const server = matchmakingmanager_1.createGameServer(socket);
-    server.emit('connection', {});
-    socket.on('data', (data) => onServerData(server, data));
-    socket.on('end', () => onServerEnd(server));
-    socket.on('error', err => console.error(err));
-};
+}
+exports.default = GameServer;
+GameServer.gameServers = [];

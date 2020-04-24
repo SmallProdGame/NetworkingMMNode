@@ -1,14 +1,14 @@
 import { Socket } from 'net';
-import uuid from 'uuid';
-import Match, { Team } from './match';
-import { matchs, addMatch, waitingTeams } from './matchmakingmanager';
+import { v4 as uuidv4 } from 'uuid';
+import { Match } from './match';
+import { matchs, addMatch, MatchTeam } from './matchmakingmanager';
 import EventHandler from './eventhandler';
 
-export default class Client extends EventHandler {
-  match: Match | undefined = undefined;
-  socket: Socket;
-  userIndex = '';
-  findingMatch = false;
+export default class Player extends EventHandler {
+  public userIndex = '';
+  public match: Match | undefined = undefined;
+  protected findingMatch = false;
+  protected socket: Socket;
 
   constructor(socket: Socket) {
     super();
@@ -16,7 +16,21 @@ export default class Client extends EventHandler {
     this.registerEvents();
   }
 
-  registerEvents = () => {
+  public send = (type: string, data: any) => {
+    try {
+      if (!this.socket.writable) return;
+      this.socket.write(
+        `${JSON.stringify({
+          type,
+          data: JSON.stringify(data),
+        })}\\n`,
+      );
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  protected registerEvents = () => {
     this.on('find_match', this.onFindMatch);
     this.on('cancel_find_match', this.onCancelFindMatch);
     this.on('create_match', this.onCreateMatch);
@@ -27,7 +41,7 @@ export default class Client extends EventHandler {
     this.on('disconnection', this.onDisconnect);
   };
 
-  onFindMatch = (data: any) => {
+  protected onFindMatch = (data: any) => {
     if (this.match) return;
     this.findingMatch = true;
     const match = this.findMatchSync(
@@ -47,11 +61,11 @@ export default class Client extends EventHandler {
     this.match = match;
   };
 
-  onCancelFindMatch = (data: any) => {
+  protected onCancelFindMatch = (data: any) => {
     this.findingMatch = false;
   };
 
-  onCreateMatch = (data: any) => {
+  protected onCreateMatch = (data: any) => {
     if (this.match) return;
     const match = this.createMatch(
       data.maxUser,
@@ -71,10 +85,10 @@ export default class Client extends EventHandler {
     this.match = match;
   };
 
-  onJoinMatch = (data: any) => {
+  protected onJoinMatch = (data: any) => {
     let match = this.match;
     if (!match) {
-      match = matchs.find(ma => ma.matchId === data.matchId);
+      match = matchs.find((ma) => ma.matchId === data.matchId);
       if (!match) {
         this.send('match_notfound', {});
         return;
@@ -89,38 +103,24 @@ export default class Client extends EventHandler {
     this.match.onPlayerJoinLobby(this);
   };
 
-  onRefuseMatch = (data: any) => {
+  protected onRefuseMatch = (data: any) => {
     if (!this.match) return;
     this.match.onPlayerLeave(this);
   };
 
-  onReadyMatch = (data: any) => {
+  protected onReadyMatch = (data: any) => {
     if (!this.match) return;
     this.match.onPlayerReadyLobby(this);
   };
 
-  onLeaveMatch = (data: any) => {
+  protected onLeaveMatch = (data: any) => {
     if (!this.match) return;
     this.match.onPlayerLeave(this);
   };
 
-  onDisconnect = () => {
+  protected onDisconnect = () => {
     if (this.match) {
       this.match.onPlayerLeave(this);
-    }
-  };
-
-  send = (type: string, data: any) => {
-    try {
-      if (!this.socket.writable) return;
-      this.socket.write(
-        `${JSON.stringify({
-          type,
-          data: JSON.stringify(data),
-        })}\\n`,
-      );
-    } catch (err) {
-      console.error(err);
     }
   };
 
@@ -129,7 +129,7 @@ export default class Client extends EventHandler {
     minUser: number,
     map: string,
     type: string,
-    players: Client[],
+    players: Player[],
     nbPlayersPerTeam: number,
     teamGrade: number,
     allowedGap: number,
@@ -156,7 +156,7 @@ export default class Client extends EventHandler {
     const neededPlayers = nbPlayersPerTeam - players.length;
     let match: Match | null = null;
     let currentAverage = 0;
-    potentialMatchs.forEach(potentialMatch => {
+    potentialMatchs.forEach((potentialMatch) => {
       let problem = false;
       let gradeAverage = 0;
       // * Test grade ...
@@ -243,7 +243,7 @@ export default class Client extends EventHandler {
     nbPlayers: number,
   ) => {
     return matchs.filter(
-      m =>
+      (m) =>
         !m.hasStart &&
         !m.isFull &&
         m.type === type &&
@@ -254,13 +254,14 @@ export default class Client extends EventHandler {
     );
   };
 
-  protected createTeam = (teamGrade: number, players: Client[]) => {
-    const team: Team = {
+  protected createTeam = (teamGrade: number, players: Player[]) => {
+    const team: MatchTeam = {
       players: [],
       grade: teamGrade,
-      id: uuid.v4(),
+      id: uuidv4(),
+      state: 0,
     };
-    players.forEach(player => {
+    players.forEach((player) => {
       team.players.push({
         client: player,
         key: null,

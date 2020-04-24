@@ -10,15 +10,35 @@ class GameServerEntry extends eventhandler_1.default {
         super();
         this.authenticated = false;
         this.registerEvents = () => {
-            this.on('playerleave', this.onPlayerLeave);
+            this.on('match_created', this.onMatchCreated);
+            this.on('match_deleted', this.onMatchDeleted);
+            this.on('user_removed', this.onUserRemoved);
+            this.on('player_leaved', this.onPlayerLeaved);
+            this.on('match_end', this.onMatchEnd);
         };
-        this.onPlayerLeave = (data) => {
-            const match = matchmakingmanager_1.matchs.find(m => m.matchId === data.matchId);
+        this.onMatchCreated = (data) => {
+            const match = matchmakingmanager_1.matchs.find((m) => m.matchId === data.matchId);
             if (match) {
-                const player = match.players().find(u => u.key === data.key);
+                match.startMatch();
+            }
+        };
+        this.onMatchDeleted = (data) => {
+        };
+        this.onUserRemoved = (data) => {
+        };
+        this.onPlayerLeaved = (data) => {
+            const match = matchmakingmanager_1.matchs.find((m) => m.matchId === data.matchId);
+            if (match) {
+                const player = match.players().find((u) => u.key === data.key);
                 if (player) {
                     match.onPlayerLeave(player.client, true);
                 }
+            }
+        };
+        this.onMatchEnd = (data) => {
+            const match = matchmakingmanager_1.matchs.find((m) => m.matchId === data.matchId);
+            if (match) {
+                match.endMatch();
             }
         };
         this.send = (type, data) => {

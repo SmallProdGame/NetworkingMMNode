@@ -5,7 +5,7 @@ interface Event {
 export default class EventHandler {
   events: Event[] = [];
   on = (type: string, func: (data: any) => void) => {
-    const event = this.events.find(e => e.type === type);
+    const event = this.events.find((e) => e.type === type);
     if (event) {
       event.func = func;
     } else {
@@ -14,7 +14,7 @@ export default class EventHandler {
   };
 
   emit = (type: string, data: any) => {
-    const ev = this.events.find(e => e.type === type);
+    const ev = this.events.find((e) => e.type === type);
     if (ev) {
       ev.func(data);
     }

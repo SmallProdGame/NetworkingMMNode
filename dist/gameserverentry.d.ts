@@ -6,6 +6,10 @@ export default class GameServerEntry extends EventHandler {
     authenticated: boolean;
     constructor(socket: Socket);
     registerEvents: () => void;
-    onPlayerLeave: (data: any) => void;
+    onMatchCreated: (data: any) => void;
+    onMatchDeleted: (data: any) => void;
+    onUserRemoved: (data: any) => void;
+    onPlayerLeaved: (data: any) => void;
+    onMatchEnd: (data: any) => void;
     send: (type: string, data: any) => void;
 }

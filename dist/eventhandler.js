@@ -4,10 +4,16 @@ class EventHandler {
     constructor() {
         this.events = [];
         this.on = (type, func) => {
-            this.events.push({ type, func });
+            const event = this.events.find((e) => e.type === type);
+            if (event) {
+                event.func = func;
+            }
+            else {
+                this.events.push({ type, func });
+            }
         };
         this.emit = (type, data) => {
-            const ev = this.events.find(e => e.type === type);
+            const ev = this.events.find((e) => e.type === type);
             if (ev) {
                 ev.func(data);
             }

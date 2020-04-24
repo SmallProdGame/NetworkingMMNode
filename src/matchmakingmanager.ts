@@ -1,10 +1,10 @@
 import { Socket } from 'net';
-import Match, { Team } from './match';
-import Client from './client';
-import GameServerEntry from './gameserverentry';
+import { Match } from './match';
+import Player from './player';
+import GameServerEntry from './gameserver';
 
 export const matchs: Match[] = [];
-export const waitingTeams: Team[] = [];
+export const waitingTeams: MatchTeam[] = [];
 
 export const addMatch = (match: Match) => {
   matchs.push(match);
@@ -15,15 +15,15 @@ export const removeMatch = (match: Match) => {
   matchs.splice(index, 1);
 };
 
-let clientCreator = (socket: Socket): Client => {
-  return new Client(socket);
+let clientCreator = (socket: Socket): Player => {
+  return new Player(socket);
 };
 
 let gameServerCreator = (socket: Socket): GameServerEntry => {
   return new GameServerEntry(socket);
 };
 
-export const setClientCreator = (creator: (socket: Socket) => Client) => {
+export const setClientCreator = (creator: (socket: Socket) => Player) => {
   clientCreator = creator;
 };
 
@@ -33,7 +33,7 @@ export const setGameServerCreator = (
   gameServerCreator = creator;
 };
 
-export const createClient = (socket: Socket): Client => {
+export const createClient = (socket: Socket): Player => {
   return clientCreator(socket);
 };
 
@@ -41,12 +41,15 @@ export const createGameServer = (socket: Socket): GameServerEntry => {
   return gameServerCreator(socket);
 };
 
-export default {
-  matchs,
-  addMatch,
-  removeMatch,
-  setClientCreator,
-  createClient,
-  setGameServerCreator,
-  createGameServer,
-};
+export interface MatchPlayer {
+  client: Player;
+  state: number;
+  key: string | null;
+}
+
+export interface MatchTeam {
+  players: MatchPlayer[];
+  grade: number;
+  id: string;
+  state: number;
+}

@@ -24,5 +24,5 @@ exports.onUserConnect = (socket) => {
     client.emit('connection', {});
     socket.on('data', (data) => onUserData(client, data));
     socket.on('end', () => onUserEnd(client));
-    socket.on('error', err => console.error(err));
+    socket.on('error', (err) => console.error(err));
 };

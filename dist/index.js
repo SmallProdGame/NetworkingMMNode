@@ -2,20 +2,24 @@
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (Object.hasOwnProperty.call(mod, k)) result[k] = mod[k];
+    result["default"] = mod;
+    return result;
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 const serverutil_1 = __importDefault(require("./serverutil"));
-const userserver_1 = require("./userserver");
-const gameserver_1 = require("./gameserver");
-const client_1 = __importDefault(require("./client"));
-const gameserverentry_1 = __importDefault(require("./gameserverentry"));
-const matchmakingmanager_1 = __importDefault(require("./matchmakingmanager"));
-const match_1 = __importDefault(require("./match"));
+const player_server_manager_1 = require("./player.server.manager");
+const game_server_manager_1 = require("./game.server.manager");
+const match = __importStar(require("./matchmakingmanager"));
 exports.startServers = (serverPort, clientPort) => {
     try {
-        const userServer = serverutil_1.default(userserver_1.onUserConnect).on('error', err => {
+        const userServer = serverutil_1.default(player_server_manager_1.onUserConnect).on('error', (err) => {
             console.error(err);
         });
-        const gameServer = serverutil_1.default(gameserver_1.onServerConnect).on('error', err => {
+        const gameServer = serverutil_1.default(game_server_manager_1.onServerConnect).on('error', (err) => {
             console.error(err);
         });
         userServer.listen({ port: clientPort }, () => {
@@ -31,8 +35,11 @@ exports.startServers = (serverPort, clientPort) => {
 };
 exports.default = {
     startServers: exports.startServers,
-    Client: client_1.default,
-    GameServerEntry: gameserverentry_1.default,
-    Match: match_1.default,
-    MatchMakingManager: matchmakingmanager_1.default,
+    match,
+    gameServer: {
+        setMatchServerKey: game_server_manager_1.setMatchServerKey,
+    },
 };
+exports.Player = __importStar(require("./player"));
+exports.GameServer = __importStar(require("./gameserver"));
+exports.Match = __importStar(require("./match"));

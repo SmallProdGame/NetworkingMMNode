@@ -4,15 +4,28 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const uuid_1 = require("uuid");
-const match_1 = __importDefault(require("./match"));
+const match_1 = require("./match");
 const matchmakingmanager_1 = require("./matchmakingmanager");
 const eventhandler_1 = __importDefault(require("./eventhandler"));
-class Client extends eventhandler_1.default {
+class Player extends eventhandler_1.default {
     constructor(socket) {
         super();
         this.match = undefined;
         this.userIndex = '';
         this.findingMatch = false;
+        this.send = (type, data) => {
+            try {
+                if (!this.socket.writable)
+                    return;
+                this.socket.write(`${JSON.stringify({
+                    type,
+                    data: JSON.stringify(data),
+                })}\\n`);
+            }
+            catch (err) {
+                console.error(err);
+            }
+        };
         this.registerEvents = () => {
             this.on('find_match', this.onFindMatch);
             this.on('cancel_find_match', this.onCancelFindMatch);
@@ -88,19 +101,6 @@ class Client extends eventhandler_1.default {
                 this.match.onPlayerLeave(this);
             }
         };
-        this.send = (type, data) => {
-            try {
-                if (!this.socket.writable)
-                    return;
-                this.socket.write(`${JSON.stringify({
-                    type,
-                    data: JSON.stringify(data),
-                })}\\n`);
-            }
-            catch (err) {
-                console.error(err);
-            }
-        };
         this.findMatchSync = (maxUser, minUser, map, type, players, nbPlayersPerTeam, teamGrade, allowedGap) => {
             if (nbPlayersPerTeam !== players.length) {
                 throw new Error('Cannot find a match synchronously with an incomplete team!');
@@ -164,10 +164,10 @@ class Client extends eventhandler_1.default {
             return team;
         };
         this.createMatch = (maxUser, minUser, map, type, password, nbPlayersPerTeam, allowedGap) => {
-            return new match_1.default(maxUser, minUser, map, type, password, nbPlayersPerTeam, allowedGap);
+            return new match_1.Match(maxUser, minUser, map, type, password, nbPlayersPerTeam, allowedGap);
         };
         this.socket = socket;
         this.registerEvents();
     }
 }
-exports.default = Client;
+exports.default = Player;
